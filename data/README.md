@@ -1,0 +1,4 @@
+
+```shell
+unzip data.zip
+```

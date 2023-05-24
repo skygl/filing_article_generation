@@ -1,0 +1,16 @@
+.idea
+.vscode
+
+# 데이터셋
+data/**
+!data/README.md
+
+# 결과
+result/**
+!result/.keep
+
+.cache
+checkpoints/**
+!checkpoints/.keep
+
+
