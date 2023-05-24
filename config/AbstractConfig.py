@@ -234,8 +234,8 @@ class FilingArticlePairDataset(Dataset):
             sep_token = self.tokenizer.eos_token
         elif self.model == 'kogpt2':
             sep_token = self.tokenizer.pad_token
-        else:
-            sep_token = self.tokenizer.sep_token or self.tokenizer.pad_token or self.tokenizer.eos_token
+        elif self.model.startswith("gogamza/kobart-base"):
+            sep_token = self.tokenizer.pad_token
 
         # filing : 제목<sep>회사이름<sep>날짜<sep>공시내용
         filing = title + sep_token + company_name + sep_token + ymd + sep_token + filing_content
@@ -276,8 +276,8 @@ class FilingArticlePairDataset(Dataset):
             pad_token_id = self.tokenizer.pad_token_id
         elif self.model == 'kogpt2':
             pad_token_id = self.tokenizer.pad_token_id
-        else:
-            pad_token_id = self.tokenizer.sep_token_id or self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+        elif self.model.startswith("gogamza/kobart-base"):
+            pad_token_id = self.tokenizer.pad_token_id
 
         return (encoder_input_ids, encoder_attention_mask, decoder_input_ids, decoder_attention_mask, labels), \
                pad_token_id
