@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import random
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -92,6 +93,21 @@ def generate_article(model: SummarizationModule, model_args: str, input_ids: [in
         raise NotImplementedError(f"{model_args} not supported")
 
 
+def find_number(text: str):
+    return re.findall(r"\d(?:\s\d)*\.(?:\s\d)+|\d(?:\s\d)+", text)
+
+
+def recover_number(src: str):
+    numbers = find_number(src)
+
+    for number in numbers:
+        changed = number.replace(" ", "")
+
+        src = src.replace(number, changed, 1)
+
+    return src
+
+
 def generate(model: SummarizationModule, testset: FilingArticlePairDataset, tokenizer, max_len, model_args):
     model.eval()
 
@@ -107,6 +123,7 @@ def generate(model: SummarizationModule, testset: FilingArticlePairDataset, toke
         generated_article = generate_article(model, model_args, input_ids, tokenizer, max_len)
 
         target: str = tokenizer.decode(target_ids)
+        target = recover_number(target)
 
         rouge_scores = rouge(generated_article, target)
 
