@@ -4,8 +4,11 @@ import re
 
 import pytorch_lightning as pl
 import torch
+from bs4 import BeautifulSoup
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
+
+import preprocessing
 
 
 def collate_fn(batch):
@@ -46,6 +49,7 @@ class AbstractConfig(object):
         data_dir = self.args.data_dir
         num_workers = self.args.num_workers
         model = self.args.model
+        preprocess_table = self.args.preprocess_table
 
         tokenizer = self.tokenizer
 
@@ -53,18 +57,22 @@ class AbstractConfig(object):
 
         data_module = FilingArticlePairDataModule(tokenizer=tokenizer, max_len=max_len, data_dir=data_dir,
                                                   batch_size=batch_size, num_workers=num_workers, model=model,
-                                                  number_representation=number_representation)
+                                                  number_representation=number_representation,
+                                                  preprocess_table=preprocess_table)
 
         return data_module
 
 
 class FilingArticlePairDataset(Dataset):
-    def __init__(self, data_dir, stage, tokenizer, max_len, model, number_representation, type_code=None):
+    def __init__(self, data_dir, stage, tokenizer, max_len, model, number_representation, preprocess_table, type_code=None):
         self.tokenizer = tokenizer
         self.max_len = max_len
         self.model = model
         self.type_code = type_code
         self.number_representation = number_representation
+        self.preprocess_table = preprocess_table
+        self.data_dir = data_dir
+        self.stage = stage
 
         meta_path = os.path.join(data_dir, stage, 'meta.json')
         if not os.path.exists(meta_path):
@@ -72,8 +80,45 @@ class FilingArticlePairDataset(Dataset):
 
         self.dataset = self.read_json(meta_path)
 
+        if self.preprocess_table is True:
+            self.preprocess_table_from_html()
+
         if self.type_code is not None:
             self.dataset = self.filter_type_code(self.dataset)
+
+    def preprocess_table_from_html(self):
+        base_path = os.path.join(self.data_dir, self.stage, 'html')
+
+        sub_elements = ['p', 'table']
+
+        for idx in range(len(self.dataset)):
+            file_path = os.path.join(base_path, self.dataset[idx]['file_path'])
+
+            with open(file_path, 'r', encoding='utf-8') as html_file:
+                html_content = html_file.read()
+
+            soup = BeautifulSoup(html_content, 'html.parser')
+
+            body_tag = soup.find('body')
+            body_tag.find_all()
+
+            children = body_tag.findChildren()
+
+            result = []
+            for child in children:
+                if child.name in sub_elements:
+                    if  child.name == 'table':
+                        content = preprocessing.table_to_text(child)
+                        result.append(content)
+                    else:
+                        text = child.get_text()
+                        content = text.replace("\xa0", "")
+                        result.append(content)
+                else:
+                    pass
+
+            result = ''.join(result)
+            self.dataset[idx]['filing_content'] = result
 
     def find_number(self, text: str) -> [str]:
         # 소수 or ","를 포함한 숫자(소수) or 두자리 이상 정수
@@ -284,7 +329,7 @@ class FilingArticlePairDataset(Dataset):
 
 
 class FilingArticlePairDataModule(pl.LightningDataModule):
-    def __init__(self, tokenizer, max_len, data_dir, batch_size, num_workers, model, number_representation):
+    def __init__(self, tokenizer, max_len, data_dir, batch_size, num_workers, model, number_representation, preprocess_table):
         super(FilingArticlePairDataModule, self).__init__()
 
         self.tokenizer = tokenizer
@@ -292,6 +337,7 @@ class FilingArticlePairDataModule(pl.LightningDataModule):
         self.data_dir = data_dir
         self.model = model
         self.number_representation = number_representation
+        self.preprocess_table = preprocess_table
 
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -299,9 +345,9 @@ class FilingArticlePairDataModule(pl.LightningDataModule):
         self.setup()
 
     def setup(self, stage: str = None) -> None:
-        self.trainset = FilingArticlePairDataset(self.data_dir, 'train', self.tokenizer, self.max_len, self.model, self.number_representation)
-        self.validset = FilingArticlePairDataset(self.data_dir, 'valid', self.tokenizer, self.max_len, self.model, self.number_representation)
-        self.testset = FilingArticlePairDataset(self.data_dir, 'test', self.tokenizer, self.max_len, self.model, self.number_representation)
+        self.trainset = FilingArticlePairDataset(self.data_dir, 'train', self.tokenizer, self.max_len, self.model, self.number_representation, self.preprocess_table)
+        self.validset = FilingArticlePairDataset(self.data_dir, 'valid', self.tokenizer, self.max_len, self.model, self.number_representation, self.preprocess_table)
+        self.testset = FilingArticlePairDataset(self.data_dir, 'test', self.tokenizer, self.max_len, self.model, self.number_representation, self.preprocess_table)
 
     def train_dataloader(self):
         return DataLoader(self.trainset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True,

@@ -195,6 +195,10 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--type_code', type=str, default=None)
     parser.add_argument('--number_representation', type=str, default=None)
+    parser.add_argument('--gpu_list', type=str, default='0',
+                        help="string; make list by splitting by ','")  # gpu list to be used
+    parser.add_argument('--use_cpu', action='store_true')
+    parser.add_argument('--preprocess_table', action='store_true')
 
     args = parser.parse_args()
 
@@ -214,10 +218,12 @@ if __name__ == '__main__':
     batch_size = args.batch_size
     num_workers = args.num_workers
     number_representation = args.number_representation
+    preprocess_table = args.preprocess_table
 
     data_module = FilingArticlePairDataModule(
         tokenizer=tokenizer, max_len=max_len, data_dir=data_dir, batch_size=batch_size,
         num_workers=num_workers, model=model_name, number_representation=number_representation,
+        preprocess_table=preprocess_table,
     )
 
     test_set = data_module.validset

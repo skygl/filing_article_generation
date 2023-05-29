@@ -7,3 +7,4 @@ boto3==1.26.58
 tensorboard==2.12.0
 nltk==3.8.1
 sentencepiece==0.1.97
+html-table-extractor==1.4.1
