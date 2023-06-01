@@ -34,6 +34,9 @@ class SummarizationModule(pl.LightningModule):
         elif args.model == 'kogpt2':
             self.model = GPT2LMHeadModel.from_pretrained('skt/kogpt2-base-v2')
 
+        if isinstance(self.model, BartPGNForConditionalGeneration):
+            self.model.model.requires_grad_(False)
+
         self.tokenizer = tokenizer
 
         self.rouge = ROUGEScore()
@@ -96,10 +99,6 @@ class SummarizationModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         return self.step(batch, batch_idx, 'valid')
-
-    def on_train_epoch_start(self) -> None:
-        if isinstance(self.model, BartPGNForConditionalGeneration):
-            self.model.model.requires_grad_(False)
 
     def training_epoch_end(self, outputs, state='train'):
         train_loss = torch.tensor(0, dtype=torch.float)
