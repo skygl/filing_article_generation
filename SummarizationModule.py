@@ -340,7 +340,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         # p_copy: [bs, output_token_len, vocab_size, 1]
         # p_copy: [bs, output_token_len, vocab_size]
         p_copy = attn_logits.unsqueeze(-1)
-        input_vocab_mask_ = input_vocab_mask.view(-1, self.vocab_size, input_token_len)
+        input_vocab_mask_ = input_vocab_mask.contiguous().view(-1, self.vocab_size, input_token_len)
         p_copy_ = p_copy.view(-1, input_token_len, 1)
         p_copy = torch.bmm(input_vocab_mask_, p_copy_)
         p_copy = p_copy.view(-1, output_token_len, self.vocab_size, 1)
