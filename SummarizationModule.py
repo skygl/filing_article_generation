@@ -320,11 +320,10 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
 
         # concat: [bs, output_token_len, hidden_dim*2]
         # p_gen: [bs, output_token_len, 1]
-        # p_gen: [bs, output_token_len]
         concat = torch.cat((context, decoder_last_hidden_states), dim=-1)
         p_gen = self.pointer_gen(concat)
-        p_gen = p_gen.squeeze(-1)
         p_gen = self.sigmoid(p_gen)
+        p_gen = p_gen.expand(-1, -1, self.vocab_size)
 
         # input_vocab_mask: [bs, input_token_len, vocab_size]
         # input_vocab_mask: [bs, vocab_size, input_token_len]
