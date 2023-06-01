@@ -333,7 +333,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         input_vocab_mask = F.one_hot(input_ids, num_classes=self.vocab_size)
         input_vocab_mask = input_vocab_mask.transpose(1, 2)
         input_vocab_mask = input_vocab_mask.unsqueeze(1)
-        input_vocab_mask = input_vocab_mask.expand(-1, output_token_len, -1, -1)
+        input_vocab_mask = input_vocab_mask.expand(-1, output_token_len, -1, -1).float()
 
         # p_copy: [bs, output_token_len, input_token_len, 1]
         # p_copy: [bs*output_token_len, vocab_size, 1]
