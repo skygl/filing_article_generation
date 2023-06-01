@@ -176,8 +176,8 @@ class BARTPGNAttention(nn.Module):
 
         # encoder_hidden_states: [bs, output_token_len, input_token_len, hidden_dim]
         # decoder_hidden_states: [bs, output_token_len, input_token_len, hidden_dim]
-        encoder_hidden_states = encoder_hidden_states.unsqueeze(1).repeat(1, output_token_len, 1, 1)
-        decoder_hidden_states = decoder_hidden_states.unsqueeze(2).repeat(1, 1, input_token_len, 1)
+        encoder_hidden_states = encoder_hidden_states.unsqueeze(1).expand(-1, output_token_len, -1, -1)
+        decoder_hidden_states = decoder_hidden_states.unsqueeze(2).expand(-1, -1, input_token_len, -1)
 
         # concat: [bs, output_token_len, input_token_len, hidden_dim*2]
         # energy: [bs, output_token_len, input_token_len, hidden_dim]
@@ -333,7 +333,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         input_vocab_mask = F.one_hot(input_ids, num_classes=self.vocab_size)
         input_vocab_mask = input_vocab_mask.transpose(1, 2)
         input_vocab_mask = input_vocab_mask.unsqueeze(1)
-        input_vocab_mask = input_vocab_mask.repeat(1, output_token_len, 1, 1)
+        input_vocab_mask = input_vocab_mask.expand(-1, output_token_len, -1, -1)
 
         # p_copy: [bs, output_token_len, input_token_len, 1]
         # p_copy: [bs*output_token_len, vocab_size, 1]
