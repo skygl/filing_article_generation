@@ -323,8 +323,8 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
 
         # concat: [bs, output_token_len, hidden_dim*2]
         # p_gen: [bs, output_token_len, 1]
-        concat = torch.cat((context, decoder_last_hidden_states), dim=-1)
-        p_gen = self.pointer_gen(concat)
+        p_gen = torch.cat((context, decoder_last_hidden_states), dim=-1)
+        p_gen = self.pointer_gen(p_gen)
         p_gen = self.sigmoid(p_gen)
         p_gen = p_gen.expand(-1, -1, self.vocab_size)
 
@@ -342,9 +342,8 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         # p_copy: [bs, output_token_len, vocab_size, 1]
         # p_copy: [bs, output_token_len, vocab_size]
         p_copy = attn_logits.unsqueeze(-1)
-        input_vocab_mask_ = input_vocab_mask.contiguous().view(-1, self.vocab_size, input_token_len)
-        p_copy_ = p_copy.view(-1, input_token_len, 1)
-        p_copy = torch.bmm(input_vocab_mask_, p_copy_)
+        p_copy = torch.bmm(input_vocab_mask.contiguous().view(-1, self.vocab_size, input_token_len),
+                           p_copy.view(-1, input_token_len, 1))
         p_copy = p_copy.view(-1, output_token_len, self.vocab_size, 1)
         p_copy = p_copy.squeeze(-1)
 
