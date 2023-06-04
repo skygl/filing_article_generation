@@ -51,9 +51,10 @@ def load_model(dir_path, checkpoint_name):
     return model
 
 
-def generate_article(model: SummarizationModule, model_args: str, input_ids: [int], tokenizer, max_len) -> str:
+def generate_article(model: SummarizationModule, model_args: str, input_ids: [int], tokenizer, max_len, device) -> str:
     if model_args == 'kobart' or model_args == 'sk_kobart':
         input_ids_tensor = torch.LongTensor(input_ids)
+        input_ids_tensor = input_ids_tensor.to(device)
 
         # input_ids : [1, n_tokens]
         input_ids_tensor = input_ids_tensor.unsqueeze(0)
@@ -108,7 +109,7 @@ def recover_number(src: str):
     return src
 
 
-def generate(model: SummarizationModule, testset: FilingArticlePairDataset, tokenizer, max_len, model_args):
+def generate(model: SummarizationModule, testset: FilingArticlePairDataset, tokenizer, max_len, model_args, device):
     model.eval()
 
     results = []
@@ -120,7 +121,7 @@ def generate(model: SummarizationModule, testset: FilingArticlePairDataset, toke
         data = testset.dataset[idx]
 
         input_ids, target_ids = input_ids.tolist(), target_ids.tolist()
-        generated_article = generate_article(model, model_args, input_ids, tokenizer, max_len)
+        generated_article = generate_article(model, model_args, input_ids, tokenizer, max_len, device)
 
         target: str = tokenizer.decode(target_ids)
         target = recover_number(target)
@@ -175,6 +176,25 @@ type_codes = [
     'I001', 'I002', 'B001', 'I003', 'J001', 'D001', 'E005', 'C001', 'E001', 'A001', 'E003'
 ]
 
+
+def get_torch_device(use_cpu, gpu_numbers):
+    device = torch.device('cpu')
+    if use_cpu is True:
+        return device
+
+    if isinstance(gpu_numbers, str):
+        gpu_numbers = gpu_numbers.split(',')
+
+    if torch.cuda.is_available() and len(gpu_numbers) > 0:
+        available_gpus = torch.cuda.device_count()
+        selected_gpus = [int(gpu.strip()) for gpu in gpu_numbers]
+        valid_gpus = [gpu for gpu in selected_gpus if gpu < available_gpus]
+        if len(valid_gpus) > 0:
+            device = torch.device(f'cuda:{valid_gpus[0]}')
+
+    return device
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, required=True)
@@ -225,7 +245,10 @@ if __name__ == '__main__':
     )
 
     test_set = data_module.validset
-    testset_result = generate(model, test_set, tokenizer, max_len, model_name)
+    device = get_torch_device(args.use_cpu, args.gpu_list)
+    model = model.to(device)
+
+    testset_result = generate(model, test_set, tokenizer, max_len, model_name, device)
 
     # 전체 성능 측정
     total_result = evaluate(testset_result)
