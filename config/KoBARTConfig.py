@@ -14,7 +14,7 @@ class KoBARTConfig(AbstractConfig):
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 
-        self.tokenizer.add_special_tokens([f"[NUM-{i}]" for i in range(10)])
+        self.tokenizer.add_special_tokens({"additional_special_tokens": [f"[NUM-{i}]" for i in range(10)]})
 
     def get_tokenizer(self):
         return self.tokenizer

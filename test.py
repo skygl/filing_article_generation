@@ -43,7 +43,7 @@ def get_tokenizer(model_arg: str, tokenizer_arg: str):
             bos_token='</s>', eos_token='</s>', pad_token='<pad>', unk_token='<unk>', mask_token='<mask>',
         )
 
-    tokenizer.add_special_tokens([f"[NUM-{i}]" for i in range(10)])
+    tokenizer.add_special_tokens({"additional_special_tokens": [f"[NUM-{i}]" for i in range(10)]})
 
     raise NotImplementedError(f"{model_arg} not supported!")
 
