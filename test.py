@@ -42,6 +42,9 @@ def get_tokenizer(model_arg: str, tokenizer_arg: str):
             "skt/kogpt2-base-v2",
             bos_token='</s>', eos_token='</s>', pad_token='<pad>', unk_token='<unk>', mask_token='<mask>',
         )
+
+    tokenizer.add_special_tokens([f"[NUM-{i}]" for i in range(10)])
+
     raise NotImplementedError(f"{model_arg} not supported!")
 
 
@@ -99,12 +102,8 @@ def find_number(text: str):
 
 
 def recover_number(src: str):
-    numbers = find_number(src)
-
-    for number in numbers:
-        changed = number.replace(" ", "")
-
-        src = src.replace(number, changed, 1)
+    for i in range(10):
+        src.replace(f"[NUM-{i}]", str(i))
 
     return src
 

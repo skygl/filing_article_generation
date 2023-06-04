@@ -124,7 +124,7 @@ class FilingArticlePairDataset(Dataset):
         # 소수 or ","를 포함한 숫자(소수) or 두자리 이상 정수
         return re.findall(r"\d+(?:\.\d+)+|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{2,}", text)
 
-    def separate_by_digit(self, text: str, ensure_position=False, separate_char=" "):
+    def separate_by_digit(self, text: str, ensure_position=False, separate_char=""):
         """
         :param ensure_position: 숫자 3자리 고정 여부
         :param separate_char: 숫자를 구분하는 문자열 (default: " ")
@@ -158,6 +158,8 @@ class FilingArticlePairDataset(Dataset):
                 else f"{before_point}{separate_char}.{separate_char}{after_point}"
 
             # 해당 문자열만 치환
+            for i in range(10):
+                changed = changed.replace(str(i), f"[NUM-{i}]")
             text = text.replace(number, changed, 1)
 
         return text
@@ -249,6 +251,19 @@ class FilingArticlePairDataset(Dataset):
 
         return list(filter(filter_, dataset))
 
+    def preprocess_article(self, text: str):
+        numbers = self.find_number(text)
+
+        for number in numbers:
+            splited = number.split(".")
+            if len(splited) > 2:
+                continue
+
+            for i in range(10):
+                text.replace(str(i), f"[NUM-{i}]")
+
+        return text
+
     def __len__(self):
         return len(self.dataset)
 
@@ -264,8 +279,7 @@ class FilingArticlePairDataset(Dataset):
         filing_content = filing_content.replace('\xa0', ' ').replace('\n', ' ').replace('\t', ' ')
         filing_content = self.replace_number_in_filing_content(filing_content)
         article = item['article_content']
-        if self.number_representation is not None:
-            article = self.separate_by_digit(article)
+        article = self.preprocess_article(article)
 
         y = date // 10000
         m = (date // 100) % 100

@@ -20,8 +20,10 @@ class SummarizationModule(pl.LightningModule):
 
         if args.model == 'sk_kobart':
             self.model = BartForConditionalGeneration.from_pretrained(get_pytorch_kobart_model())
+            self.model.resize_token_embeddings(len(tokenizer))
         elif args.model in ['gogamza/kobart-base-v1', 'gogamza/kobart-base-v2']:
             self.model = BartForConditionalGeneration.from_pretrained(args.model)
+            self.model.resize_token_embeddings(len(tokenizer))
         elif args.model == 'et5':
             model_path = os.path.join(BASE_PATH, '.cache', 'et5')
             self.model = T5ForConditionalGeneration.from_pretrained(model_path)
