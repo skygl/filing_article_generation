@@ -127,7 +127,7 @@ def generate(model: SummarizationModule, testset: FilingArticlePairDataset, toke
         generated_article = generate_article(model, model_args, input_ids, tokenizer, max_len, device)
         generated_article = recover_number(generated_article)
 
-        target: str = tokenizer.decode(target_ids)
+        target = data['article_content']
 
         rouge_scores = rouge(generated_article, target)
 
