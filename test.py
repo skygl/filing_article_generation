@@ -103,7 +103,7 @@ def recover_number(text: str):
     for i in range(2, len(text)):
         if text[i].isdigit() and text[i - 1] == ' ' and text[i - 2].isdigit():
             remove_idx.append(i - 1)
-        elif text[i].isdigit() and text[i - 1] == ' ' and text[i - 2] == '.' and i  >= 4 and text[i - 4].isdigit():
+        elif text[i].isdigit() and text[i - 1] == ' ' and text[i - 2] == '.' and i >= 3 and text[i - 3].isdigit():
             remove_idx.append(i - 1)
     recovered_text = ""
     for i in range(len(text)):
