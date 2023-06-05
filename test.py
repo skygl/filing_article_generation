@@ -100,9 +100,9 @@ def find_number(text: str):
 
 def recover_number(text: str):
     remove_idx = []
-    for i in range(len(text) - 3):
-        if text[i].isdigit() and text[i + 1] == ' ' and text[i + 2].isdigit():
-            remove_idx.append(i)
+    for i in range(2, len(text)):
+        if text[i].isdigit() and text[i - 1] == ' ' and text[i - 2].isdigit():
+            remove_idx.append(i - 1)
     recovered_text = ""
     for i in range(len(text)):
         if i not in remove_idx:
