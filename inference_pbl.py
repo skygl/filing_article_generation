@@ -116,7 +116,6 @@ def generate(model: SummarizationModule, testset: FilingArticlePairDataset, toke
     results = []
 
     for idx in tqdm(range(len(testset))):
-        (input_ids, _, _, _, target_ids), _ = testset.__getitem__(idx)
         data = testset.dataset[idx]
 
         filing_id = data['filing']['id']
