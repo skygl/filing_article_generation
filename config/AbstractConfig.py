@@ -249,6 +249,48 @@ class FilingArticlePairDataset(Dataset):
 
         return list(filter(filter_, dataset))
 
+    def get_input(self, idx):
+        item = self.dataset[idx]
+
+        title = item['filing']['title']
+        date = item['filing']['date']
+        company_name = item['company']['stock_name']
+        if isinstance(company_name, float):
+            company_name = item['company']['dart_name']
+        filing_content = item['filing_content']
+        filing_content = filing_content.replace('\xa0', ' ').replace('\n', ' ').replace('\t', ' ')
+        filing_content = self.replace_number_in_filing_content(filing_content)
+
+        y = date // 10000
+        m = (date // 100) % 100
+        d = date % 100
+        ymd = f"{y}년 {m}월 {d}일"
+
+        bos_token_id = self.tokenizer.bos_token_id
+        eos_token_id = self.tokenizer.eos_token_id
+
+        if self.model == 'kobart':
+            sep_token = self.tokenizer.eos_token
+        elif self.model == 'kogpt2':
+            sep_token = self.tokenizer.pad_token
+        elif self.model.startswith("gogamza/kobart-base"):
+            sep_token = self.tokenizer.pad_token
+
+        # filing : 제목<sep>회사이름<sep>날짜<sep>공시내용
+        filing = title + sep_token + company_name + sep_token + ymd + sep_token + filing_content
+
+        if self.model == 'kogpt2':
+            sep_token_id = self.tokenizer.pad_token_id
+            encoder_input_ids = self.tokenizer.encode(filing)[:self.max_len - 1]
+            encoder_input_ids = encoder_input_ids + [sep_token_id]
+        else:
+            # encoder_input_ids : <s>~</s>
+            encoder_input_ids = self.tokenizer.encode(filing)[:self.max_len - 2]
+            encoder_input_ids = [bos_token_id] + encoder_input_ids + [eos_token_id]
+        encoder_input_ids = torch.LongTensor(encoder_input_ids)
+
+        return encoder_input_ids
+
     def __len__(self):
         return len(self.dataset)
 
