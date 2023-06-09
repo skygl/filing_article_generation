@@ -9,20 +9,31 @@ def table_to_text(table):
     extractor.parse()
     content_list = extractor.return_list()
 
-    tmp = []
+    total = ''
+    prev_tmp = []
     for content in content_list:
-        for c in content:
+        tmp = []
+        tmp_str = []
+        for c_idx, c in enumerate(content):
             c = c.replace("\xa0", "")
             if c not in tmp:
-                tmp.append(c)
+                if len(prev_tmp) > c_idx and c == prev_tmp[c_idx]:
+                    tmp_str.append("")
+                else:
+                    tmp_str.append(c)
             else:
                 if c == '-':
-                    tmp.append(c)
+                    tmp_str.append(c)
                 else:
-                    tmp.append('')
-        tmp.append('\n')  # 행 구분 개행문자 추가
+                    tmp_str.append("")
+            tmp.append(c)
 
-    result = ','.join(tmp)
-    result = re.sub(r'(-,)+', "-,", result)  # -,-,-, 중복 제거
+        tmp.append('\n')  # 행 구분 개행문자 추가
+        tmp_str = "\t".join(tmp_str) + "\n"
+        total += tmp_str
+        prev_tmp = tmp
+
+    result = re.sub(r'(—)+', "-", total)
+    result = "\n" + result
 
     return result
