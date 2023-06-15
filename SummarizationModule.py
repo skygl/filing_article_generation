@@ -174,7 +174,7 @@ class BARTPGNAttention(nn.Module):
     def mask_pad_token(self, logits, encoder_attention_mask):
         # logits_masked: [bs, output_token_len, input_token_len]
         # encoder_attention_mask: [bs, input_token_len]
-        logits_masked = logits.copy()
+        logits_masked = logits.clone()
         output_token_len = logits.shape[1]
 
         # encoder_attention_mask: [bs, 1, input_token_len]
