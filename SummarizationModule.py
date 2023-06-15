@@ -292,7 +292,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         self.lstm_hidden_dim = 256
 
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
-        self.lm_head_ = nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False)
+        self.set_output_embeddings(nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False))
 
         self.lstm_encoder = LSTMEncoder(input_dim=self.hidden_dim, hidden_dim=self.lstm_hidden_dim//2)
         self.lstm_decoder = LSTMDecoder(hidden_dim=self.hidden_dim, output_dim=self.lstm_hidden_dim)
