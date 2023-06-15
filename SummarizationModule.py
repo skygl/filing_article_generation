@@ -291,8 +291,12 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         self.vocab_size = config.vocab_size
         self.lstm_hidden_dim = 256
 
+        # Not Used
+        self.lm_head = nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
-        self.set_output_embeddings(nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False))
+
+        # Used
+        self.lm_head_ = nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False)
 
         self.lstm_encoder = LSTMEncoder(input_dim=self.hidden_dim, hidden_dim=self.lstm_hidden_dim//2)
         self.lstm_decoder = LSTMDecoder(hidden_dim=self.hidden_dim, output_dim=self.lstm_hidden_dim)
@@ -403,7 +407,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         lstm_decoder_outputs, _ = self.lstm_decoder(bart_decoder_outputs, lstm_encoder_hidden, lstm_encoder_cell)
 
         # lm_logits: [bs, output_token_len, vocab_size]
-        lm_logits = self.lm_head(lstm_decoder_outputs)
+        lm_logits = self.lm_head_(lstm_decoder_outputs)
         lm_logits = lm_logits + self.final_logits_bias.to(lm_logits.device)
 
         # attn_weights: [bs, output_token_len, input_token_len]
