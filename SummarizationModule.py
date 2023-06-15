@@ -403,7 +403,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         lstm_decoder_outputs, _ = self.lstm_decoder(bart_decoder_outputs, lstm_encoder_hidden, lstm_encoder_cell)
 
         # lm_logits: [bs, output_token_len, vocab_size]
-        lm_logits = self.lm_head_(lstm_decoder_outputs)
+        lm_logits = self.lm_head(lstm_decoder_outputs)
         lm_logits = lm_logits + self.final_logits_bias.to(lm_logits.device)
 
         # attn_weights: [bs, output_token_len, input_token_len]
