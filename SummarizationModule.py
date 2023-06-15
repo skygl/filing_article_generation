@@ -171,7 +171,22 @@ class BARTPGNAttention(nn.Module):
         self.attn = nn.Linear(hidden_dim * 2, hidden_dim)
         self.v = nn.Linear(hidden_dim, 1, bias=False)
 
-    def forward(self, decoder_hidden_states, encoder_hidden_states):
+    def mask_pad_token(self, logits, encoder_attention_mask):
+        # logits_masked: [bs, output_token_len, input_token_len]
+        # encoder_attention_mask: [bs, input_token_len]
+        logits_masked = logits.copy()
+        output_token_len = logits.shape[1]
+
+        # encoder_attention_mask: [bs, 1, input_token_len]
+        # encoder_attention_mask: [bs, output_token_len, input_token_len]
+        encoder_attention_mask = encoder_attention_mask.unsqueeze(1)
+        encoder_attention_mask = encoder_attention_mask.expand(-1, output_token_len, -1)
+
+        logits_masked[encoder_attention_mask == 0] = -float("inf")
+
+        return logits_masked
+
+    def forward(self, decoder_hidden_states, encoder_hidden_states, encoder_attention_mask):
         # encoder_hidden_states: [bs, input_token_len, hidden_dim]
         # decoder_hidden_states: [bs, output_token_len, hidden_dim]
         input_token_len = encoder_hidden_states.shape[1]
@@ -188,13 +203,72 @@ class BARTPGNAttention(nn.Module):
         energy = self.attn(concat)
         energy = torch.tanh(energy)
 
-        # attn_weight: [bs, output_token_len, input_token_len, 1]
+        # logits: [bs, output_token_len, input_token_len, 1]
+        # logits: [bs, output_token_len, input_token_len]
+        # masked_logits: [bs, output_token_len, input_token_len]
         # attn_weight: [bs, output_token_len, input_token_len]
         logits = self.v(energy)
         logits = logits.squeeze(-1)
-        attn_weight = F.softmax(logits, dim=-1)
+        masked_logits = self.mask_pad_token(logits, encoder_attention_mask)
+        attn_weight = F.softmax(masked_logits, dim=-1)
 
         return attn_weight, logits
+
+
+class LSTMEncoder(nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int, bias: bool = True):
+        super(LSTMEncoder, self).__init__()
+
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.bias = bias
+
+        self.lstm = nn.LSTM(
+            input_size=input_dim,
+            hidden_size=hidden_dim,
+            bidirectional=True,
+            batch_first=True,
+            bias=bias,
+        )
+
+    def forward(self, lstm_input):
+        # lstm_input: [bs, input_token_len, input_dim]
+
+        # hidden = [n layers * n directions, batch size, hid dim]
+        # cell = [n layers * n directions, batch size, hid dim]
+
+        # output: [bs, input_token_len, 2*hidden_dim]
+        # hidden, cell: [2, bs, hidden_dim]
+        output, (hidden, cell) = self.lstm(lstm_input)
+
+        # hidden, cell: [bs, 2, hidden_dim]
+        # hidden, cell: [bs, 2*hidden_dim]
+        # hidden, cell: [bs, 1, 2*hidden_dim]
+        hidden = hidden.transpose(0, 1)
+        hidden = hidden.view(-1, 2*self.hidden_dim)
+        hidden = hidden.unsqueeze(1)
+        cell = cell.transpose(0, 1)
+        cell = cell.view(-1, 2*self.hidden_dim)
+        cell = cell.unsqueeze(1)
+
+        return output, (hidden, cell)
+
+
+class LSTMDecoder(nn.Module):
+    def __init__(self, hidden_dim: int, output_dim: int, bias: bool = True):
+        super(LSTMDecoder, self).__init__()
+
+        self.lstm = nn.LSTM(
+            input_size=hidden_dim,
+            hidden_size=output_dim,
+            batch_first=True,
+            bias=bias,
+        )
+
+    def forward(self, lstm_input, encoder_hidden, encoder_cell):
+        output, (decoder_hidden, decoder_cell) = self.lstm(lstm_input, (encoder_hidden, encoder_cell))
+
+        return output, (decoder_hidden, decoder_cell)
 
 
 class BartPGNForConditionalGeneration(BartPretrainedModel):
@@ -209,16 +283,22 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
     def __init__(self, config: BartConfig):
         super().__init__(config)
         self.model = BartModel(config)
-        self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
-        self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
 
         self.hidden_dim = config.d_model
         self.vocab_size = config.vocab_size
-        self.attn = BARTPGNAttention(hidden_dim=self.hidden_dim)
+        self.lstm_hidden_dim = 256
+
+        self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
+        self.lm_head = nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False)
+
+        self.lstm_encoder = LSTMEncoder(input_dim=self.hidden_dim, hidden_dim=self.lstm_hidden_dim//2)
+        self.lstm_decoder = LSTMDecoder(hidden_dim=self.hidden_dim, output_dim=self.lstm_hidden_dim)
+
+        self.attn = BARTPGNAttention(hidden_dim=self.lstm_hidden_dim)
 
         self.sigmoid = nn.Sigmoid()
 
-        self.pointer_gen = nn.Linear(2 * self.hidden_dim, 1)
+        self.pointer_gen = nn.Linear(2 * self.lstm_hidden_dim, 1)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -303,27 +383,36 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
             return_dict=return_dict,
         )
 
-        lm_logits = self.lm_head(outputs[0])
-        lm_logits = lm_logits + self.final_logits_bias.to(lm_logits.device)
+        # bart_decoder_outputs: [bs, output_token_len, hidden_dim]
+        bart_decoder_outputs = outputs.last_hidden_state
+        output_token_len = bart_decoder_outputs.shape[1]
 
         # encoder_last_hidden_states: [bs, input_token_len, hidden_dim]
         encoder_last_hidden_states = outputs.encoder_last_hidden_state
         input_token_len = encoder_last_hidden_states.shape[1]
 
-        # decoder_last_hidden_states: [bs, output_token_len, hidden_dim]
-        decoder_last_hidden_states = outputs.last_hidden_state
-        output_token_len = decoder_last_hidden_states.shape[1]
+        # lstm_encoder_outputs: [bs, input_token_len, lstm_hidden_dim]
+        # lstm_encoder_hidden: [bs, 1, lstm_hidden_dim]
+        # lstm_encoder_cell: [bs, 1, lstm_hidden_dim]
+        lstm_encoder_outputs, (lstm_encoder_hidden, lstm_encoder_cell) = self.lstm_encoder(encoder_last_hidden_states)
+
+        # lstm_decoder_outputs: [bs, output_token_len, lstm_hidden_dim]
+        lstm_decoder_outputs, _ = self.lstm_decoder(bart_decoder_outputs, lstm_encoder_hidden, lstm_encoder_cell)
+
+        # lm_logits: [bs, output_token_len, vocab_size]
+        lm_logits = self.lm_head(lstm_decoder_outputs)
+        lm_logits = lm_logits + self.final_logits_bias.to(lm_logits.device)
 
         # attn_weights: [bs, output_token_len, input_token_len]
         # attn_logits: [bs, output_token_len, input_token_len]
-        attn_weights, attn_logits = self.attn(decoder_last_hidden_states, encoder_last_hidden_states)
+        attn_weights, attn_logits = self.attn(lstm_decoder_outputs, lstm_encoder_outputs, attention_mask)
 
         # context: [bs, output_token_len, hidden_dim]
-        context = torch.bmm(attn_weights, encoder_last_hidden_states)
+        context = torch.bmm(attn_weights, lstm_encoder_outputs)
 
         # concat: [bs, output_token_len, hidden_dim*2]
         # p_gen: [bs, output_token_len, 1]
-        p_gen = torch.cat((context, decoder_last_hidden_states), dim=-1)
+        p_gen = torch.cat((context, lstm_decoder_outputs), dim=-1)
         p_gen = self.pointer_gen(p_gen)
         p_gen = self.sigmoid(p_gen)
         p_gen = p_gen.expand(-1, -1, self.vocab_size)
