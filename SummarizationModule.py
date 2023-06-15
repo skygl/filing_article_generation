@@ -330,22 +330,25 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
 
         # input_vocab_mask: [bs, input_token_len, vocab_size]
         # input_vocab_mask: [bs, vocab_size, input_token_len]
-        # input_vocab_mask: [bs, 1, vocab_size, input_token_len]
-        # input_vocab_mask: [bs, output_token_len, vocab_size, input_token_len]
         input_vocab_mask = F.one_hot(input_ids, num_classes=self.vocab_size)
-        input_vocab_mask = input_vocab_mask.to_sparse()
         input_vocab_mask = input_vocab_mask.transpose(1, 2)
-        input_vocab_mask = input_vocab_mask.unsqueeze(1)
-        input_vocab_mask = input_vocab_mask.expand(-1, output_token_len, -1, -1).float()
 
-        # p_copy: [bs, output_token_len, input_token_len, 1]
-        # p_copy: [bs*output_token_len, vocab_size, 1]
+        # attn_logits_: [output_token_len, bs, input_token_len]
+        # attn_logits_: [output_token_len, bs, input_token_len, 1]
+        attn_logits_ = attn_logits.transpose(0, 1)
+        attn_logits_ = attn_logits_.unsqueeze(-1)
+
+        p_copy_list = []
+        for i in range(output_token_len):
+            # p_copy: [bs, vocab_size, 1]
+            # p_copy: [bs, 1, vocab_size, 1]
+            p_copy = torch.bmm(input_vocab_mask, attn_logits_[i])
+            p_copy = p_copy.unsqueeze(1)
+            p_copy_list.append(p_copy)
+
         # p_copy: [bs, output_token_len, vocab_size, 1]
         # p_copy: [bs, output_token_len, vocab_size]
-        p_copy = attn_logits.unsqueeze(-1)
-        p_copy = torch.bmm(input_vocab_mask.contiguous().view(-1, self.vocab_size, input_token_len),
-                           p_copy.view(-1, input_token_len, 1))
-        p_copy = p_copy.view(-1, output_token_len, self.vocab_size, 1)
+        p_copy = torch.cat(p_copy_list, dim=1)
         p_copy = p_copy.squeeze(-1)
 
         p_w_logits = p_gen * lm_logits + (1 - p_gen) * p_copy
