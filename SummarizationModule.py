@@ -244,12 +244,15 @@ class LSTMEncoder(nn.Module):
         # hidden, cell: [bs, 2, hidden_dim]
         # hidden, cell: [bs, 2*hidden_dim]
         # hidden, cell: [bs, 1, 2*hidden_dim]
+        # hidden, cell: [1, bs, 2*hidden_dim]
         hidden = hidden.transpose(0, 1)
         hidden = hidden.contiguous().view(-1, 2*self.hidden_dim)
         hidden = hidden.unsqueeze(1)
+        hidden = hidden.transpose(0, 1)
         cell = cell.transpose(0, 1)
         cell = cell.contiguous().view(-1, 2*self.hidden_dim)
         cell = cell.unsqueeze(1)
+        cell = cell.transpose(0, 1)
 
         return output, (hidden, cell)
 
