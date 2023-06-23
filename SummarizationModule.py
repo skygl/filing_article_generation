@@ -34,6 +34,8 @@ class SummarizationModule(pl.LightningModule):
         elif args.model == 'kogpt2':
             self.model = GPT2LMHeadModel.from_pretrained('skt/kogpt2-base-v2')
 
+        self.model.init_lm_head()
+        self.model.init_new_weights()
         if isinstance(self.model, BartPGNForConditionalGeneration):
             self.model.model.requires_grad_(False)
 
@@ -291,15 +293,13 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         self.vocab_size = config.vocab_size
         self.lstm_hidden_dim = 256
 
-        # Not Used
         self.lm_head = nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
 
-        # Used
-        self.lm_head_ = nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False)
-
         # self.lstm_encoder = LSTMEncoder(input_dim=self.hidden_dim, hidden_dim=self.lstm_hidden_dim//2)
         # self.lstm_decoder = LSTMDecoder(hidden_dim=self.hidden_dim, output_dim=self.lstm_hidden_dim)
+        self.encoder_fc = nn.Linear(self.hidden_dim, self.lstm_hidden_dim)
+        self.decoder_fc = nn.Linear(self.hidden_dim, self.lstm_hidden_dim)
 
         self.attn = BARTPGNAttention(hidden_dim=self.lstm_hidden_dim)
 
@@ -309,6 +309,20 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
 
         # Initialize weights and apply final processing
         self.post_init()
+
+    def init_new_weights(self):
+        def init_weight(module: nn.Module):
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+
+        modules = [self.encoder_fc, self.decoder_fc, self.attn.v, self.attn.attn, self.pointer_gen]
+
+        for module in modules:
+            init_weight(module)
+
+    def init_lm_head(self):
+        self.lm_head = nn.Linear(self.lstm_hidden_dim, self.model.shared.num_embeddings, bias=False)
+        self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
 
     def get_encoder(self):
         return self.model.get_encoder()
@@ -391,11 +405,15 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         )
 
         # bart_decoder_outputs: [bs, output_token_len, hidden_dim]
+        # bart_decoder_outputs: [bs, output_token_len, lstm_hidden_dim]
         bart_decoder_outputs = outputs.last_hidden_state
+        bart_decoder_outputs = self.decoder_fc(bart_decoder_outputs)
         output_token_len = bart_decoder_outputs.shape[1]
 
         # encoder_last_hidden_states: [bs, input_token_len, hidden_dim]
+        # encoder_last_hidden_states: [bs, input_token_len, lstm_hidden_din]
         bart_encoder_outputs = outputs.encoder_last_hidden_state
+        bart_encoder_outputs = self.encoder_fc(bart_encoder_outputs)
 
         # lstm_encoder_outputs: [bs, input_token_len, lstm_hidden_dim]
         # lstm_encoder_hidden: [bs, 1, lstm_hidden_dim]
@@ -406,7 +424,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         # lstm_decoder_outputs, _ = self.lstm_decoder(bart_decoder_outputs, lstm_encoder_hidden, lstm_encoder_cell)
 
         # lm_logits: [bs, output_token_len, vocab_size]
-        lm_logits = self.lm_head_(bart_decoder_outputs)
+        lm_logits = self.lm_head(bart_decoder_outputs)
         lm_logits = lm_logits + self.final_logits_bias.to(lm_logits.device)
 
         # attn_weights: [bs, output_token_len, input_token_len]
