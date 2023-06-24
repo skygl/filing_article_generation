@@ -298,14 +298,14 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
 
         # self.lstm_encoder = LSTMEncoder(input_dim=self.hidden_dim, hidden_dim=self.lstm_hidden_dim//2)
         # self.lstm_decoder = LSTMDecoder(hidden_dim=self.hidden_dim, output_dim=self.lstm_hidden_dim)
-        self.encoder_fc = nn.Linear(self.hidden_dim, self.lstm_hidden_dim)
+        # self.encoder_fc = nn.Linear(self.hidden_dim, self.lstm_hidden_dim)
         self.decoder_fc = nn.Linear(self.hidden_dim, self.lstm_hidden_dim)
 
-        self.attn = BARTPGNAttention(hidden_dim=self.lstm_hidden_dim)
+        # self.attn = BARTPGNAttention(hidden_dim=self.lstm_hidden_dim)
 
-        self.sigmoid = nn.Sigmoid()
+        # self.sigmoid = nn.Sigmoid()
 
-        self.pointer_gen = nn.Linear(2 * self.lstm_hidden_dim, 1)
+        # self.pointer_gen = nn.Linear(2 * self.lstm_hidden_dim, 1)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -315,7 +315,8 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
             if isinstance(module, nn.Linear):
                 nn.init.xavier_uniform_(module.weight)
 
-        modules = [self.encoder_fc, self.decoder_fc, self.attn.v, self.attn.attn, self.pointer_gen]
+        # modules = [self.encoder_fc, self.decoder_fc, self.attn.v, self.attn.attn, self.pointer_gen, self.lm_head]
+        modules = [self.lm_head, self.decoder_fc]
 
         for module in modules:
             init_weight(module)
@@ -412,8 +413,8 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
 
         # encoder_last_hidden_states: [bs, input_token_len, hidden_dim]
         # encoder_last_hidden_states: [bs, input_token_len, lstm_hidden_din]
-        bart_encoder_outputs = outputs.encoder_last_hidden_state
-        bart_encoder_outputs = self.encoder_fc(bart_encoder_outputs)
+        # bart_encoder_outputs = outputs.encoder_last_hidden_state
+        # bart_encoder_outputs = self.encoder_fc(bart_encoder_outputs)
 
         # lstm_encoder_outputs: [bs, input_token_len, lstm_hidden_dim]
         # lstm_encoder_hidden: [bs, 1, lstm_hidden_dim]
@@ -429,55 +430,57 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
 
         # attn_weights: [bs, output_token_len, input_token_len]
         # attn_logits: [bs, output_token_len, input_token_len]
-        attn_weights, attn_logits = self.attn(bart_decoder_outputs, bart_encoder_outputs, attention_mask)
+        # attn_weights, attn_logits = self.attn(bart_decoder_outputs, bart_encoder_outputs, attention_mask)
 
         # context: [bs, output_token_len, hidden_dim]
-        context = torch.bmm(attn_weights, bart_encoder_outputs)
+        # context = torch.bmm(attn_weights, bart_encoder_outputs)
 
         # concat: [bs, output_token_len, hidden_dim*2]
         # p_gen: [bs, output_token_len, 1]
-        p_gen = torch.cat((context, bart_decoder_outputs), dim=-1)
-        p_gen = self.pointer_gen(p_gen)
-        p_gen = self.sigmoid(p_gen)
-        p_gen = p_gen.expand(-1, -1, self.vocab_size)
+        # p_gen = torch.cat((context, bart_decoder_outputs), dim=-1)
+        # p_gen = self.pointer_gen(p_gen)
+        # p_gen = self.sigmoid(p_gen)
+        # p_gen = p_gen.expand(-1, -1, self.vocab_size)
 
         # input_vocab_mask: [bs, input_token_len, vocab_size]
         # input_vocab_mask: [bs, vocab_size, input_token_len]
-        input_vocab_mask = F.one_hot(input_ids, num_classes=self.vocab_size)
-        input_vocab_mask = input_vocab_mask.transpose(1, 2).float()
+        # input_vocab_mask = F.one_hot(input_ids, num_classes=self.vocab_size)
+        # input_vocab_mask = input_vocab_mask.transpose(1, 2).float()
 
         # attn_logits_: [output_token_len, bs, input_token_len]
         # attn_logits_: [output_token_len, bs, input_token_len, 1]
-        attn_logits_ = attn_logits.transpose(0, 1)
-        attn_logits_ = attn_logits_.unsqueeze(-1)
+        # attn_logits_ = attn_logits.transpose(0, 1)
+        # attn_logits_ = attn_logits_.unsqueeze(-1)
 
-        p_copy_list = []
-        for i in range(output_token_len):
-            # p_copy: [bs, vocab_size, 1]
-            # p_copy: [bs, 1, vocab_size, 1]
-            p_copy = torch.bmm(input_vocab_mask, attn_logits_[i])
-            p_copy = p_copy.unsqueeze(1)
-            p_copy_list.append(p_copy)
+        # p_copy_list = []
+        # for i in range(output_token_len):
+        #     # p_copy: [bs, vocab_size, 1]
+        #     # p_copy: [bs, 1, vocab_size, 1]
+        #     p_copy = torch.bmm(input_vocab_mask, attn_logits_[i])
+        #     p_copy = p_copy.unsqueeze(1)
+        #     p_copy_list.append(p_copy)
 
         # p_copy: [bs, output_token_len, vocab_size, 1]
         # p_copy: [bs, output_token_len, vocab_size]
-        p_copy = torch.cat(p_copy_list, dim=1)
-        p_copy = p_copy.squeeze(-1)
+        # p_copy = torch.cat(p_copy_list, dim=1)
+        # p_copy = p_copy.squeeze(-1)
 
-        p_w_logits = p_gen * lm_logits + (1 - p_gen) * p_copy
+        # p_w_logits = p_gen * lm_logits + (1 - p_gen) * p_copy
 
         masked_lm_loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss()
-            masked_lm_loss = loss_fct(p_w_logits.view(-1, self.config.vocab_size), labels.view(-1))
+            # masked_lm_loss = loss_fct(p_w_logits.view(-1, self.config.vocab_size), labels.view(-1))
+            masked_lm_loss = loss_fct(lm_logits.view(-1, self.config.vocab_size), labels.view(-1))
 
         if not return_dict:
-            output = (p_w_logits,) + outputs[1:]
+            # output = (p_w_logits,) + outputs[1:]
+            output = (lm_logits,) + outputs[1:]
             return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
 
         return Seq2SeqLMOutput(
             loss=masked_lm_loss,
-            logits=p_w_logits,
+            logits=lm_logits,
             past_key_values=outputs.past_key_values,
             decoder_hidden_states=outputs.decoder_hidden_states,
             decoder_attentions=outputs.decoder_attentions,
