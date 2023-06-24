@@ -299,7 +299,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
         # self.lstm_encoder = LSTMEncoder(input_dim=self.hidden_dim, hidden_dim=self.lstm_hidden_dim//2)
         # self.lstm_decoder = LSTMDecoder(hidden_dim=self.hidden_dim, output_dim=self.lstm_hidden_dim)
         # self.encoder_fc = nn.Linear(self.hidden_dim, self.lstm_hidden_dim)
-        self.decoder_fc = nn.Linear(self.hidden_dim, self.lstm_hidden_dim)
+        self.decoder_fc = nn.Linear(self.hidden_dim, self.lstm_hidden_dim, bias=False)
 
         # self.attn = BARTPGNAttention(hidden_dim=self.lstm_hidden_dim)
 
