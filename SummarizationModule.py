@@ -407,7 +407,7 @@ class BartPGNForConditionalGeneration(BartPretrainedModel):
 
         # bart_decoder_outputs: [bs, output_token_len, hidden_dim]
         # bart_decoder_outputs: [bs, output_token_len, lstm_hidden_dim]
-        bart_decoder_outputs = outputs.last_hidden_state
+        bart_decoder_outputs = outputs[0]
         bart_decoder_outputs = self.decoder_fc(bart_decoder_outputs)
         output_token_len = bart_decoder_outputs.shape[1]
 
