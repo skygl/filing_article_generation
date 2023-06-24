@@ -46,6 +46,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_cpu', action='store_true')
     parser.add_argument('--number_representation', type=str, default=None)
     parser.add_argument('--preprocess_table', action='store_true')
+    parser.add_argument('--freeze_bart', action='store_true')
 
     args = parser.parse_args()
 

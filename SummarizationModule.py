@@ -36,7 +36,7 @@ class SummarizationModule(pl.LightningModule):
 
         self.model.init_lm_head()
         self.model.init_new_weights()
-        if isinstance(self.model, BartPGNForConditionalGeneration):
+        if args.freeze_bart and isinstance(self.model, BartPGNForConditionalGeneration):
             self.model.model.requires_grad_(False)
 
         self.tokenizer = tokenizer
