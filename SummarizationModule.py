@@ -86,8 +86,8 @@ class SummarizationModule(pl.LightningModule):
         loss = outputs.loss
         logits = outputs.logits  # shape : (batch, len_decoder_inputs, vocab)
 
-        preds = torch.argmax(logits, dim=2).to(self._device)  # shape : (batch, len_decoder_inputs)
-        targets = batch['decoder_input_ids'].to(self._device)
+        preds = torch.argmax(logits, dim=2)  # shape : (batch, len_decoder_inputs)
+        targets = batch['decoder_input_ids']
 
         self.log(f"[{state.upper()} LOSS]", loss, prog_bar=True)
         return {
